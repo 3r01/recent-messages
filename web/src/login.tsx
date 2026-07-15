@@ -2,7 +2,6 @@ import arrayBufferToHex from "array-buffer-to-hex";
 import * as qs from "qs";
 import * as React from "react";
 import { Link, Navigate, useLocation, Location } from "react-router-dom";
-import { Alert, Button, Spinner } from "reactstrap";
 import config from "../config";
 import { AuthState, AuthPresent } from "./index";
 
@@ -48,18 +47,7 @@ class Login extends React.Component<
   }
 
   render() {
-    return (
-      <>
-        <h1>Login</h1>
-        <Alert fade={false} color="primary">
-          <h4 className="alert-heading">
-            <Spinner color="primary" className="mr-3" />
-            Logging in...
-          </h4>
-          Sending you to Twitch...
-        </Alert>
-      </>
-    );
+    return <p>Sending you to Twitch...</p>;
   }
 }
 
@@ -236,34 +224,13 @@ class Authorized extends React.Component<
   render() {
     switch (this.state.type) {
       case "loadToken":
-        return (
-          <>
-            <h1>Login</h1>
-            <Alert fade={false} color="primary">
-              <h4 className="alert-heading">
-                <Spinner color="primary" className="mr-3" />
-                Logging in...
-              </h4>
-              Completing login...
-            </Alert>
-          </>
-        );
+        return <p>Completing login...</p>;
       case "error":
         return (
-          <>
-            <h1>Login</h1>
-            <Alert fade={false} color="danger">
-              <h4 className="alert-heading">Failed to log you in!</h4>
-              There was an unexpected error while trying to log you in.
-              (Technical error details: {this.state.message})
-              <hr />
-              Click below to go back to where you came from.
-              <br />
-              <Link to={this.state.returnTo}>
-                <Button color="primary">Go back</Button>
-              </Link>
-            </Alert>
-          </>
+          <p className="text-danger">
+            Login failed: {this.state.message}.{" "}
+            <Link to={this.state.returnTo}>Go back</Link>.
+          </p>
         );
       case "finished":
         return <Navigate to={this.state.returnTo} />;

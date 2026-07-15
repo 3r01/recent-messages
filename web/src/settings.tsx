@@ -1,7 +1,6 @@
 import React, { ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 import {
-  Alert,
   Button,
   CustomInput,
   Form,
@@ -314,7 +313,7 @@ export function Settings(props: {
   if (props.auth.type === "present") {
     return (
       <>
-        <h1>Settings</h1>
+        <h2>Settings</h2>
         <SettingsLoggedIn
           auth={props.auth}
           updateAuthState={props.updateAuthState}
@@ -324,19 +323,11 @@ export function Settings(props: {
   } else {
     return (
       <>
-        <h1>Settings</h1>
-        <Alert fade={false} color="warning">
-          <h4 className="alert-heading">Not logged in</h4>
-          You are currently not logged in. Use the button below or the link on
-          the navigation bar to log in.
-          <br />
-          <Link to="/login?returnTo=%2Fsettings">
-            <Button color="primary">
-              <i className="fas fa-sign-in-alt mr-1" />
-              Log in
-            </Button>
-          </Link>
-        </Alert>
+        <h2>Settings</h2>
+        <p>You must log in to manage a channel.</p>
+        <p>
+          <Link to="/login?returnTo=%2Fsettings">Log in</Link>
+        </p>
       </>
     );
   }

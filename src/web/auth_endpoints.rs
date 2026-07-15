@@ -124,7 +124,7 @@ pub async fn create_token(
     };
 
     app_data
-        .data_storage
+        .control_store
         .append_user_authorization(&user_authorization)
         .await
         .map_err(ApiError::SaveUserAuthorization)?;
@@ -152,7 +152,7 @@ pub async fn extend_token(
     authorization.valid_until = new_expiry;
 
     app_data
-        .data_storage
+        .control_store
         .update_user_authorization(&authorization)
         .await
         .map_err(ApiError::UpdateUserAuthorization)?;
@@ -169,7 +169,7 @@ pub async fn revoke_token(
     Extension(authorization): Extension<UserAuthorization>,
 ) -> Result<StatusCode, ApiError> {
     app_data
-        .data_storage
+        .control_store
         .delete_user_authorization(&authorization.access_token)
         .await
         .map_err(ApiError::AuthorizationRevokeFailed)?;

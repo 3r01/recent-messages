@@ -1,0 +1,111 @@
+
+[app]
+vacuum_channels_every = "30 minutes"
+channels_expire_after = "24 hours"
+max_buffer_size = 800
+message_ttl = "24 hours"
+
+[block_store]
+path = "data/recent-messages.sqlite"
+block_messages = 100
+max_messages_per_channel = 800
+writer_queue_batches = 256
+read_connections = 4
+
+[control_store]
+path = "data/control.sqlite"
+
+[ingest]
+enabled = false
+raw_firehoses = [
+  "wss://logs.spanix.team/firehose",
+  "wss://logs.supa.codes/firehose",
+  "wss://logs.susgee.dev/firehose",
+  "wss://logxx.dev/firehose",
+]
+origin = "https://tv.supa.sh"
+batch_messages = 100
+batch_max_delay = "100ms"
+reconnect_min_delay = "1s"
+reconnect_max_delay = "30s"
+queue_batches = 256
+max_open_channels = 100000
+max_open_bytes = 536870912
+idle_seal_after = "5 minutes"
+max_open_age = "10 minutes"
+seal_interval = "1s"
+checkpoint_interval = "10 minutes"
+checkpoint_poll_interval = "30s"
+checkpoint_journal_bytes = 268435456
+
+[storage_budget]
+max_bytes = 2147483648
+max_filesystem_percent = 75
+min_free_bytes = 1073741824
+wal_reserve_bytes = 268435456
+high_water_ratio = 0.90
+target_ratio = 0.80
+emergency_ratio = 0.98
+pressure_floor_messages_per_channel = 50
+max_enforcement_passes = 8
+
+[irc]
+always_join_channels = []
+new_connection_every = "550ms"
+join_confirmation_timeout = "30s"
+join_retry_poll = "30s"
+join_retry_min = "1 minute"
+join_retry_max = "6 hours"
+unavailable_retry_after = "6 hours"
+
+[admin]
+max_always_join_channels = 100000
+
+[health]
+firehose_max_event_age = "5 minutes"
+ingest_max_accept_age = "2 minutes"
+max_queue_batches = 200
+
+[peer]
+nodes = []
+connect_timeout = "100ms"
+request_timeout = "250ms"
+delegate_timeout = "1500ms"
+max_inflight = 32
+max_delegate_response_bytes = 8388608
+failure_threshold = 5
+open_duration = "30s"
+refresh_after = "24 hours"
+
+[repair]
+providers = []
+connect_timeout = "1 second"
+request_timeout = "10 seconds"
+fast_return_wait = "350ms"
+foreground_wait = "1500ms"
+max_inflight = 16
+max_response_bytes = 4194304
+failure_threshold = 5
+open_duration = "30s"
+refresh_after = "6 hours"
+partial_retry_after = "5 minutes"
+failure_retry_after = "1 minute"
+handoff_grace = "5s"
+#[[repair.providers]]
+
+[web]
+listen_address = { type = "tcp", address = "127.0.0.1:2790" }
+client_id = "replace-me"
+client_secret = "replace-me"
+redirect_uri = "https://example.invalid/auth/callback"
+sessions_expire_after = "7 days"
+recheck_twitch_auth_after = "1 hour"
+request_timeout = "10 seconds"
+max_inflight_recent_requests = 16
+adaptive_response_cache_enabled = true
+adaptive_response_cache_max_age = "1 second"
+adaptive_response_cache_pressure_hold = "2 seconds"
+adaptive_response_cache_enter_inflight = 16
+adaptive_response_cache_max_entries = 256
+adaptive_response_cache_max_bytes = 67108864
+adaptive_response_cache_max_entry_bytes = 1048576

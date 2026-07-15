@@ -1,36 +1,28 @@
 let cfg = {
-  client_id: "nld8y6rt7f5u7l1xuq4eni8pzp8mjo",
-  redirect_uri: "https://recent-messages.robotty.de/authorized",
+  client_id: "e7dqb3z6wicuij1m1ubdrup831mhl6",
+  redirect_uri: "https://rm.iore.tv/authorized",
   // human readable strings for the home page and API documentation
   messages_expire_after: "24 hours",
   channels_expire_after: "24 hours",
   sessions_expire_after: "7 days",
   max_buffer_size: "800",
-  github_link: "https://github.com/robotty/recent-messages2",
   // used for both the documentation as well as the actual API calls made by the web app. Don't include a trailing slash
-  api_base_url: "https://recent-messages.robotty.de/api/v2",
+  api_base_url: "https://rm.iore.tv/api/v2",
+  recent_messages_base_url: "https://rm.iore.tv/api",
 
-  service_owner_info:
-    "The recent-messages service is created and run by me, randers.",
-  issues_url: "https://github.com/robotty/recent-messages2/issues",
-  general_contact_email_rot13: "ehora.naqref@ebobggl.qr",
+  general_contact_email_rot13: "vber@vber.gi",
   // don't include a trailing slash
-  repo_url: "https://github.com/robotty/recent-messages2",
-  enable_donation_section: true,
+  repo_url: "https://github.com/3R01/recent-messages",
+  upstream_repo_url: "https://github.com/robotty/recent-messages2",
+  sponsor_url: "https://github.com/sponsors/3R01",
 
   // Remember to update privacy_last_updated_on when updating these!
   privacy_how_do_i_store_your_data:
-    "The collected data described above is securely stored at a server hosted " +
-    "in Nuremberg (Nürnberg), Germany at my hosting provider netcup GmbH " +
-    "(netcup GmbH, Daimlerstraße 25, 76185 Karlsruhe, Germany, Tel. " +
-    "+4972175407550, E-Mail mail@netcup.de - " +
-    "https://www.netcup.eu/kontakt/impressum.php). Netcup employs the necessary " +
-    "security measures to ensure all data is kept safe. Netcup's data center is " +
-    "subject to physical access control, 24/7 video surveillance and " +
-    "supervision by an independent security company " +
-    "(https://www.netcup.eu/ueber-netcup/rechenzentrum.php).",
-  privacy_contact_email_rot13: "ehora.naqref@ebobggl.qr",
-  privacy_last_updated_on: "13 December 2020",
+    "The collected data described above is stored on an access-controlled OVHcloud " +
+    "virtual private server. Runtime databases and credentials are not publicly " +
+    "accessible, and public traffic reaches the service through Cloudflare Tunnel.",
+  privacy_contact_email_rot13: "vber@vber.gi",
+  privacy_last_updated_on: "13 July 2026",
 };
 
 export type Config = typeof cfg;

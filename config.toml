@@ -5,21 +5,39 @@
 # A channel is no longer listened to if it has not been accessed by anyone for at least this long (default: 24 hours)
 #channels_expire_after = "24 hours"
 
-# How often to start checking each channel for expired messages
-#vacuum_messages_every = "30 minutes"
-# After what time is a message considered expired?
-#messages_expire_after = "24 hours"
-
-# Maximum number of messages that will be stored for a channel. Defaults to 500.
 # If a message is received and this limit is exceeded, then the oldest message stored for the channel
 # will be deleted to make room.
-#max_buffer_size = 500
+
+[block_store]
+
+[control_store]
+
+[ingest]
+
+[storage_budget]
 
 [irc]
 # Rate limit for connecting new IRC connections to Twitch.
 #new_connection_every = "550ms"
-# Messages received from Twitch are forwarded to the database in chunks, separated by this fixed time interval.
-#forwarder_run_every = "100ms"
+
+[peer]
+#[[peer.nodes]]
+
+[repair]
+providers = []
+connect_timeout = "150ms"
+request_timeout = "10 seconds"
+fast_return_wait = "350ms"
+foreground_wait = "1500ms"
+max_inflight = 16
+max_response_bytes = 4194304
+failure_threshold = 5
+open_duration = "30s"
+refresh_after = "6 hours"
+partial_retry_after = "5 minutes"
+failure_retry_after = "1 minute"
+handoff_grace = "5s"
+#[[repair.providers]]
 
 # Configure the built-in web server and API service
 [web]
@@ -41,64 +59,3 @@ redirect_uri = "https://example.com/"
 
 # After how many seconds should any webserver requests time out and result in an error?
 #request_timeout = "10 seconds"
-
-# Specify how we should connect to the PostgreSQL database server
-# most options are additionally documented here: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS
-[db]
-# Username to log into the database server as. Required
-user = "db_username"
-
-# Optional password for login, not needed e.g. if you use unix sockets with peer authentication
-#password = "a_password"
-
-# Name of the database to connect to. Required
-dbname = "recent_messages2"
-
-# A list of TCP or Unix addresses to try. Required (at least 1 must be specified).
-# Specify a list of addresses to try, in the other that they should be tried.
-# A TCP address can be specified like this:
-#     { hostname = "example.com", port = 5432 }
-#     { hostname = "example.com" }         (uses default port 5432)
-# A unix socket can be specified like this:
-#     { path = "/var/run/postgresql", port = 5432 }
-#     { path = "/var/run/postgresql" }     (uses default port 5432)
-# Unix sockets can only be specified on Unix systems. On Windows and other systems a config specifying Unix
-# sockets will fail to parse.
-host = [ { path = "/var/run/postgresql" } ]
-
-# Control options passed to the PostgreSQL server.
-# Below is just an example, see https://www.postgresql.org/docs/current/config-setting.html#id-1.6.6.4.5
-# (the format is like in the PGOPTIONS environment variable)
-# See also the accompanying chapter 19: https://www.postgresql.org/docs/current/runtime-config.html
-#options = "-c search_path=my_custom_schema -c another_setting=another_value"
-
-# Maximum wait for connection
-# Supported duration format: https://docs.rs/humantime/2.0.1/humantime/fn.parse_duration.html
-#connect_timeout = "10s"
-
-# Controls whether client-side TCP keepalives are used. Defaults to true
-#keepalives = true
-
-# Controls the number of seconds of inactivity after which TCP should send a keepalive message to the server.
-# Defaults to 2 hours
-#keepalives_idle = "2 hours"
-
-# Configure whether TLS (formerly known as SSL) is used. Valid values: "disable", "prefer", "require"
-# The certificate presented by the PostgreSQL server is validated against the root certificates of the system.
-#ssl_mode = "prefer"
-
-# more supported options: application_name, target_session_attrs, channel_binding
-# (usually irrelevant, search them up if you need them)
-
-[db.pool]
-# maximum number of connections the DB connection pool will create
-# up this setting in case you run into issues on larger deployments,
-# and increase max_connections_count on the PostgreSQL server config (as needed) as well
-# default value is the number of CPUs on the system, multiplied by four
-#max_size = 32
-# Timeout for creating a new database connection
-#create_timeout = "5 seconds"
-# Timeout for waiting for a connection from the pool to become available
-#wait_timeout = "5 seconds"
-# Timeout for "recycling", that is checking and putting an object back into the pool
-#recycle_timeout = "5 seconds"

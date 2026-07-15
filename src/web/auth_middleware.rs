@@ -34,7 +34,7 @@ pub async fn with_authorization(
 
     // data storage query ensures token is not totally expired
     let mut authorization = app_data
-        .data_storage
+        .control_store
         .get_user_authorization(access_token)
         .await
         .map_err(ApiError::QueryAccessToken)?
@@ -51,7 +51,7 @@ pub async fn with_authorization(
 
     if pre_validation_auth != authorization {
         app_data
-            .data_storage
+            .control_store
             .update_user_authorization(&authorization)
             .await
             .map_err(ApiError::UpdateUserAuthorization)?;

@@ -1,21 +1,53 @@
 [Unit]
-Description=Recent messages buffer service, version 2
-After=postgresql.service
+Description=Recent Messages service
+Documentation=https://github.com/3R01/recent-messages
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=5min
+StartLimitBurst=5
 
 [Service]
 Type=simple
-Restart=always
-User=recent_messages
-Group=recent_messages
-Environment=RUST_LOG=twitch_irc=debug,recent_messages2=debug,info
-WorkingDirectory=/opt/recent-messages2
-ExecStart=/opt/recent-messages2/target/release/recent-messages2 --config config.prod.toml
-RuntimeDirectory=recent-messages2
-RuntimeDirectoryMode=0777
-TimeoutStopSec=infinity
-# Default on my default debian was 1024 open file descriptors (too low for large setups)
-# This raises both hard and soft NOFILE limits significantly
-LimitNOFILE=infinity
+User=recent-messages
+Group=recent-messages
+UMask=0077
+WorkingDirectory=/opt/recent-messages/current
+Environment=RUST_LOG=twitch_irc=info,recent_messages2=info
+ExecStart=/opt/recent-messages/current/bin/recent-messages2 --config /etc/recent-messages/config.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=120s
+KillSignal=SIGTERM
+
+StateDirectory=recent-messages
+StateDirectoryMode=0750
+RuntimeDirectory=recent-messages
+RuntimeDirectoryMode=0750
+LimitNOFILE=524288
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ProtectHostname=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictNamespaces=true
+ReadWritePaths=/var/lib/recent-messages
 
 [Install]
 WantedBy=multi-user.target

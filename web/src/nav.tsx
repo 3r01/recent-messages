@@ -1,154 +1,43 @@
 import * as React from "react";
-import {
-  Link as RRLink,
-  matchPath,
-  NavLink as RRNavLink,
-  useLocation,
-  Location,
-} from "react-router-dom";
-import {
-  Collapse,
-  Container,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownToggle,
-  Nav as BsNav,
-  Navbar,
-  NavbarBrand,
-  NavbarToggler,
-  NavItem,
-  NavLink,
-} from "reactstrap";
+import { Link, matchPath, useLocation } from "react-router-dom";
 import { AuthState } from "./index";
 
-type NavComponentProps = { auth: AuthState; location: Location };
+function AccountLink({ auth }: { auth: AuthState }) {
+  const location = useLocation();
+  const returnTo = encodeURIComponent(
+    location.pathname + location.search + location.hash,
+  );
 
-export class Nav extends React.Component<
-  NavComponentProps,
-  { menuCollapsed: boolean; dropdownOpen: boolean }
-> {
-  constructor(props: NavComponentProps) {
-    super(props);
-    this.state = { menuCollapsed: true, dropdownOpen: false };
+  if (auth.type === "loading" || matchPath(location.pathname, "/authorized")) {
+    return <span className="nav-status">logging in…</span>;
   }
-
-  render() {
-    const toggleCollapsed = () => {
-      this.setState((state, props) => {
-        return { menuCollapsed: !state.menuCollapsed };
-      });
-    };
-    const toggleDropdown = () => {
-      this.setState((state, props) => {
-        return { dropdownOpen: !state.dropdownOpen };
-      });
-    };
-
-    let loginSection;
-    let location = this.props.location;
-
-    switch (this.props.auth.type) {
-      case "missing":
-        // hide the login button on the /authorized error page. The user should first "Go back", then try again
-        if (matchPath(location.pathname, "/authorized")) {
-          loginSection = <NavItem>Logging you in...</NavItem>;
-        } else {
-          loginSection = (
-            <NavItem>
-              <NavLink
-                tag={RRLink}
-                to={`/login?returnTo=${encodeURIComponent(
-                  location.pathname + location.search + location.hash,
-                )}`}
-              >
-                <i className="fas fa-sign-in-alt mr-1" />
-                Login
-              </NavLink>
-            </NavItem>
-          );
-        }
-        break;
-      case "loading":
-        loginSection = <NavItem>Logging you in...</NavItem>;
-        break;
-      case "present":
-        if (this.props.auth.userDetailsValidating) {
-          loginSection = <NavItem>Checking login status...</NavItem>;
-        } else {
-          loginSection = (
-            <Dropdown
-              nav
-              isOpen={this.state.dropdownOpen}
-              toggle={toggleDropdown}
-            >
-              <DropdownToggle nav caret>
-                <img
-                  className="profile-image mr-1"
-                  src={this.props.auth.userProfileImageUrl}
-                  alt="Profile picture"
-                />{" "}
-                {this.props.auth.userName}
-              </DropdownToggle>
-              <DropdownMenu>
-                <DropdownItem tag={RRLink} to="/settings">
-                  Settings
-                </DropdownItem>
-                <DropdownItem
-                  tag={RRLink}
-                  to={`/logout?returnTo=${encodeURIComponent(
-                    location.pathname + location.search + location.hash,
-                  )}`}
-                >
-                  <i className="fas fa-sign-out-alt mr-1" />
-                  Log Out
-                </DropdownItem>
-              </DropdownMenu>
-            </Dropdown>
-          );
-        }
-        break;
-    }
-
-    return (
-      <Navbar expand="lg" className="navbar-themed">
-        <Container>
-          <NavbarBrand tag={RRNavLink} to="/">
-            recent-messages
-          </NavbarBrand>
-          <NavbarToggler onClick={toggleCollapsed} />
-          <Collapse isOpen={!this.state.menuCollapsed} navbar>
-            <BsNav className="mr-auto" navbar>
-              <NavItem>
-                <NavLink tag={RRNavLink} to="/">
-                  Home
-                </NavLink>
-              </NavItem>
-              <NavItem>
-                <NavLink tag={RRNavLink} to="/settings">
-                  Settings
-                </NavLink>
-              </NavItem>
-              <NavItem>
-                <NavLink tag={RRNavLink} to="/api">
-                  API
-                </NavLink>
-              </NavItem>
-              <NavItem>
-                <NavLink tag={RRNavLink} to="/privacy">
-                  Privacy
-                </NavLink>
-              </NavItem>
-            </BsNav>
-            <BsNav navbar>{loginSection}</BsNav>
-          </Collapse>
-        </Container>
-      </Navbar>
-    );
+  if (auth.type === "missing") {
+    return <Link to={`/login?returnTo=${returnTo}`}>log in</Link>;
   }
+  if (auth.userDetailsValidating) {
+    return <span className="nav-status">checking login…</span>;
+  }
+  return (
+    <span className="account-links">
+      <img className="profile-image" src={auth.userProfileImageUrl} alt="" />
+      <Link to="/settings">{auth.userName}</Link>
+      <span aria-hidden="true">·</span>
+      <Link to={`/logout?returnTo=${returnTo}`}>log out</Link>
+    </span>
+  );
 }
 
 export function NavWithRouter({ auth }: { auth: AuthState }) {
-  const location = useLocation();
-  return <Nav auth={auth} location={location} />;
+  return (
+    <header className="site-header">
+      <nav className="site-nav" aria-label="Main navigation">
+        <span className="nav-links">
+          <Link to="/">home</Link>
+          <Link to="/viewer">viewer</Link>
+          <Link to="/settings">settings</Link>
+        </span>
+        <AccountLink auth={auth} />
+      </nav>
+    </header>
+  );
 }
