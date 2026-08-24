@@ -3,6 +3,7 @@ use axum::Json;
 use axum::response::{IntoResponse, Response};
 use http::StatusCode;
 use http::header::HeaderName;
+use recent_messages2::storage::StoreError;
 use serde::Serialize;
 use thiserror::Error;
 use tracing::error;
@@ -13,6 +14,8 @@ pub enum ApiError {
     NotFound,
     #[error("Request Timeout")]
     RequestTimeout,
+    #[error("Service temporarily overloaded")]
+    ServiceOverloaded,
     #[error("Method Not Allowed")]
     MethodNotAllowed,
     #[error("Invalid or missing path parameters")]
@@ -35,6 +38,20 @@ pub enum ApiError {
     MalformedAuthorizationHeader,
     #[error("Unauthorized (access token expired or invalid)")]
     Unauthorized,
+    #[error("Peer access is not configured")]
+    PeerAccessDisabled,
+    #[error("Unauthorized peer request")]
+    UnauthorizedPeer,
+    #[error("Administrative access is not configured")]
+    AdminAccessDisabled,
+    #[error("Unauthorized administrative request")]
+    UnauthorizedAdmin,
+    #[error("Always-join list exceeds its configured maximum of {0} channels")]
+    AlwaysJoinLimit(usize),
+    #[error("The ignored channel `{0}` cannot be added to the always-join list")]
+    AlwaysJoinIgnored(String),
+    #[error("Invalid peer hop headers")]
+    InvalidPeerHop,
     #[error("Failed to exchange code for an access token: {0}")]
     ExchangeCodeForAccessToken(reqwest::Error),
     #[error("Failed to query details about authorized user: {0}")]
@@ -53,10 +70,16 @@ pub enum ApiError {
     GetChannelIgnored(StorageError),
     #[error("Failed to set channel's ignored status: {0}")]
     SetChannelIgnored(StorageError),
-    #[error("Failed get a channel's messages: {0}")]
-    GetMessages(StorageError),
+    #[error("Failed to get a channel's messages from local storage: {0}")]
+    GetLocalMessages(StoreError),
+    #[error("Failed to get a channel's coverage from local storage: {0}")]
+    GetCoverage(StorageError),
     #[error("Failed to purge a channel's messages: {0}")]
-    PurgeMessages(StorageError),
+    PurgeMessages(StoreError),
+    #[error("Failed to manage always-join channels: {0}")]
+    ManageAlwaysJoin(StorageError),
+    #[error("Failed to synchronize always-join storage priority: {0}")]
+    SyncAlwaysJoin(StoreError),
 }
 
 impl ApiError {
@@ -71,10 +94,16 @@ impl ApiError {
             | ApiError::AuthorizationRevokeFailed(_)
             | ApiError::GetChannelIgnored(_)
             | ApiError::SetChannelIgnored(_)
-            | ApiError::GetMessages(_)
-            | ApiError::PurgeMessages(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiError::NotFound => StatusCode::NOT_FOUND,
+            | ApiError::GetLocalMessages(_)
+            | ApiError::GetCoverage(_)
+            | ApiError::PurgeMessages(_)
+            | ApiError::ManageAlwaysJoin(_)
+            | ApiError::SyncAlwaysJoin(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::NotFound | ApiError::PeerAccessDisabled | ApiError::AdminAccessDisabled => {
+                StatusCode::NOT_FOUND
+            }
             ApiError::RequestTimeout => StatusCode::REQUEST_TIMEOUT,
+            ApiError::ServiceOverloaded => StatusCode::SERVICE_UNAVAILABLE,
             ApiError::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             ApiError::InvalidPath
             | ApiError::InvalidQuery
@@ -83,9 +112,13 @@ impl ApiError {
             | ApiError::MissingHeader(_)
             | ApiError::InvalidChannelLogin(_)
             | ApiError::InvalidAuthorizationCode
-            | ApiError::MalformedAuthorizationHeader => StatusCode::BAD_REQUEST,
-            ApiError::ChannelIgnored(_) => StatusCode::FORBIDDEN,
-            ApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            | ApiError::MalformedAuthorizationHeader
+            | ApiError::AlwaysJoinLimit(_)
+            | ApiError::InvalidPeerHop => StatusCode::BAD_REQUEST,
+            ApiError::ChannelIgnored(_) | ApiError::AlwaysJoinIgnored(_) => StatusCode::FORBIDDEN,
+            ApiError::Unauthorized | ApiError::UnauthorizedPeer | ApiError::UnauthorizedAdmin => {
+                StatusCode::UNAUTHORIZED
+            }
         }
     }
 
@@ -102,8 +135,11 @@ impl ApiError {
             | ApiError::AuthorizationRevokeFailed(_)
             | ApiError::GetChannelIgnored(_)
             | ApiError::SetChannelIgnored(_)
-            | ApiError::GetMessages(_)
-            | ApiError::PurgeMessages(_) => "Internal Server Error".to_owned(),
+            | ApiError::GetLocalMessages(_)
+            | ApiError::GetCoverage(_)
+            | ApiError::PurgeMessages(_)
+            | ApiError::ManageAlwaysJoin(_)
+            | ApiError::SyncAlwaysJoin(_) => "Internal Server Error".to_owned(),
             rest => format!("{rest}"),
         }
     }
@@ -119,10 +155,14 @@ impl ApiError {
             | ApiError::AuthorizationRevokeFailed(_)
             | ApiError::GetChannelIgnored(_)
             | ApiError::SetChannelIgnored(_)
-            | ApiError::GetMessages(_)
-            | ApiError::PurgeMessages(_) => "internal_server_error",
+            | ApiError::GetLocalMessages(_)
+            | ApiError::GetCoverage(_)
+            | ApiError::PurgeMessages(_)
+            | ApiError::ManageAlwaysJoin(_)
+            | ApiError::SyncAlwaysJoin(_) => "internal_server_error",
             ApiError::NotFound => "not_found",
             ApiError::RequestTimeout => "request_timeout",
+            ApiError::ServiceOverloaded => "service_overloaded",
             ApiError::MethodNotAllowed => "method_not_allowed",
             ApiError::InvalidPath => "invalid_path",
             ApiError::InvalidQuery => "invalid_query",
@@ -134,6 +174,13 @@ impl ApiError {
             ApiError::InvalidAuthorizationCode => "invalid_authorization_code",
             ApiError::MalformedAuthorizationHeader => "malformed_authorization_header",
             ApiError::Unauthorized => "unauthorized",
+            ApiError::PeerAccessDisabled => "peer_access_disabled",
+            ApiError::UnauthorizedPeer => "unauthorized_peer",
+            ApiError::AdminAccessDisabled => "admin_access_disabled",
+            ApiError::UnauthorizedAdmin => "unauthorized_admin",
+            ApiError::AlwaysJoinLimit(_) => "always_join_limit",
+            ApiError::AlwaysJoinIgnored(_) => "always_join_ignored",
+            ApiError::InvalidPeerHop => "invalid_peer_hop",
         }
     }
 }
@@ -148,12 +195,12 @@ struct ApiErrorResponse {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        // If error is in the 5xx range, log it.
-        if self.status_code().is_server_error() {
+        let overloaded = matches!(&self, ApiError::ServiceOverloaded);
+        if self.status_code().is_server_error() && !overloaded {
             error!("Returning Internal Server Error to a user: {}", self);
         }
 
-        (
+        let mut response = (
             self.status_code(),
             Json(ApiErrorResponse {
                 status: self.status_code().as_u16(),
@@ -162,6 +209,16 @@ impl IntoResponse for ApiError {
                 error_code: self.error_code(),
             }),
         )
-            .into_response()
+            .into_response();
+        if overloaded {
+            response
+                .headers_mut()
+                .insert("x-rm-overloaded", http::HeaderValue::from_static("1"));
+            response.headers_mut().insert(
+                http::header::RETRY_AFTER,
+                http::HeaderValue::from_static("1"),
+            );
+        }
+        response
     }
 }

@@ -4,7 +4,6 @@ use axum::extract::rejection::JsonRejection;
 use axum::{Extension, Json};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Serialize)]
 pub struct GetIgnoredResponse {
@@ -16,7 +15,7 @@ pub async fn get_ignored(
     Extension(app_data): Extension<WebAppData>,
 ) -> Result<Json<GetIgnoredResponse>, ApiError> {
     let is_ignored = app_data
-        .data_storage
+        .control_store
         .is_channel_ignored(&authorization.user_login)
         .await
         .map_err(ApiError::GetChannelIgnored)?;
@@ -41,36 +40,24 @@ pub async fn set_ignored(
     }) = options.map_err(|_| ApiError::InvalidPayload)?;
 
     app_data
-        .data_storage
+        .control_store
         .set_channel_ignored(&authorization.user_login, should_be_ignored)
         .await
         .map_err(ApiError::SetChannelIgnored)?;
+    app_data
+        .block_store
+        .set_channel_blocked(
+            authorization.user_login.to_ascii_lowercase(),
+            should_be_ignored,
+        )
+        .await
+        .map_err(ApiError::PurgeMessages)?;
 
     if should_be_ignored {
-        // TODO: There can be messages getting added to the message store between the purge
-        // and the time that the PART command reaches the Twitch server. The 3 second time delay
-        // "solution" is a hack, needs a better solution
-        // maybe put a "blocker"/poison type into the db storage
         app_data
             .irc_listener
             .irc_client
             .part(authorization.user_login.clone());
-
-        app_data
-            .data_storage
-            .purge_messages(&authorization.user_login)
-            .await
-            .map_err(ApiError::PurgeMessages)?;
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(3)).await;
-            let result = app_data
-                .data_storage
-                .purge_messages(&authorization.user_login)
-                .await;
-            if let Err(e) = result {
-                tracing::error!("Failed to purge messages a second time: {}", e);
-            }
-        });
     } else {
         app_data
             .irc_listener

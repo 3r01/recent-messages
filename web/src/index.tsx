@@ -1,7 +1,12 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
-import { Container } from "reactstrap";
+import {
+  BrowserRouter,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+} from "react-router-dom";
 import {
   AuthorizedWithRouter,
   LoginWithRouter,
@@ -10,7 +15,8 @@ import {
 } from "./login";
 import { NavWithRouter } from "./nav";
 import { Settings } from "./settings";
-import { API, DonationThankYou, Home, Privacy } from "./static";
+import { DonationThankYou, Home } from "./static";
+import { Viewer } from "./viewer";
 
 export interface AuthMissing {
   type: "missing";
@@ -129,16 +135,16 @@ export class App extends React.Component<{}, { auth: AuthState }> {
     let navAndContainer = (
       <>
         <NavWithRouter auth={this.state.auth} />
-        <Container className="pt-3">
+        <main className="site-shell">
           <Outlet />
-        </Container>
+        </main>
       </>
     );
     return (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={navAndContainer}>
-            <Route path="/api" element={<API />} />
+            <Route path="/api" element={<Navigate to="/#api" replace />} />
             <Route
               path="/settings"
               element={
@@ -169,8 +175,12 @@ export class App extends React.Component<{}, { auth: AuthState }> {
                 />
               }
             />
-            <Route path="/privacy" element={<Privacy />} />
+            <Route
+              path="/privacy"
+              element={<Navigate to="/#privacy" replace />}
+            />
             <Route path="/donation-thank-you" element={<DonationThankYou />} />
+            <Route path="/viewer" element={<Viewer />} />
             <Route path="/" element={<Home />} />
             <Route
               path="*"
