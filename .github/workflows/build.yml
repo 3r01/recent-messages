@@ -1,9 +1,13 @@
-name: Build
+name: CI
 
-on: [push, pull_request]
+on: [workflow_dispatch]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
-  checks: write
+  contents: read
 
 jobs:
   check-format-rustfmt:
@@ -11,12 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: cargo fmt -- --check
-        uses: qRoC/cargo-actions@v1
         with:
-          command: fmt
-          args: -- --check
-          token: ${{ secrets.GITHUB_TOKEN }}
+          components: rustfmt
+      - run: cargo fmt --all -- --check
   check-rust:
     runs-on: ${{ matrix.os }}-latest
     strategy:
@@ -25,14 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: cargo check
-        uses: qRoC/cargo-actions@v1
-        with:
-          command: check
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: cargo check --all-targets
   build-rust-artifacts:
-    # only master branch
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: ${{ matrix.os }}-latest
     strategy:
       matrix:
@@ -40,12 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: cargo build --release
-        uses: qRoC/cargo-actions@v1
-        with:
-          command: build
-          args: --release
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
           name: app-${{ matrix.os }}
@@ -58,7 +48,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cd web && npm ci
-      # If updating this command, make sure to update the same command in /scripts/reformat.sh too
       - run: ./web/node_modules/.bin/prettier --check --ignore-path ".gitignore" "**/*.md" "**/*.tsx" "**/*.yml" "**/*.json"
   build-web:
     runs-on: ubuntu-latest
@@ -71,8 +60,6 @@ jobs:
       - run: cd web && npm ci
       - run: cd web && npm run build
       - uses: actions/upload-artifact@v4
-        # only master branch
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
-          name: web
+          name: web-${{ matrix.node }}
           path: web/dist/
