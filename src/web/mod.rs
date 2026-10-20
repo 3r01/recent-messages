@@ -1,14 +1,20 @@
+use crate::Config;
 use crate::config::ListenAddr;
+use crate::db::ControlStore;
 use crate::irc_listener::IrcListener;
 use crate::web::error::ApiError;
-use crate::{Config, DataStorage};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Extension, Router, middleware};
 use futures::future::BoxFuture;
 use http::{Method, header};
-use std::{net::SocketAddr, sync::LazyLock};
+use recent_messages2::storage::{AsyncSqliteBlockStore, SharedOpenBlocksHandle};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, LazyLock},
+};
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tower_http::services::{ServeDir, ServeFile};
@@ -22,28 +28,45 @@ use {
     tokio::net::UnixListener,
 };
 
+mod admin;
 pub mod auth;
 mod auth_endpoints;
 mod auth_middleware;
+mod cluster_policy;
 pub mod error;
 mod get_metrics;
 pub mod get_recent_messages;
+mod health;
 mod ignored;
+mod peer;
 mod purge;
 mod record_metrics;
+mod repair;
+mod response_cache;
 mod timeout;
+mod viewer_badges;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct WebAppData {
-    data_storage: &'static DataStorage,
+    applied_policies: cluster_policy::AppliedPolicies,
+    control_store: &'static ControlStore,
     irc_listener: &'static IrcListener,
     config: &'static Config,
+    block_store: &'static AsyncSqliteBlockStore,
+    open_blocks: Option<SharedOpenBlocksHandle>,
+    peer_client: Option<peer::PeerClient>,
+    repair_coordinator: Option<repair::RepairCoordinator>,
+    admin_auth: Option<admin::AdminAuth>,
+    public_requests: Option<Arc<Semaphore>>,
+    response_cache: Option<response_cache::AdaptiveResponseCache>,
 }
 
 static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 #[derive(Error, Debug)]
 pub enum BindError {
+    #[error("Failed to synchronize replicated policy before admission")]
+    InvalidClusterState,
     #[error("Failed to bind to address `{0}`: {1}")]
     BindTcp(&'static SocketAddr, std::io::Error),
     #[cfg(unix)]
@@ -75,20 +98,106 @@ pub enum BindError {
         err = .2
     )]
     SetPermissions(&'static Path, Permissions, std::io::Error),
+    #[error("Invalid peer configuration: {0}")]
+    InvalidPeerConfig(#[from] peer::PeerConfigError),
+    #[error("Invalid repair configuration: {0}")]
+    InvalidRepairConfig(#[from] repair::RepairConfigError),
+    #[error("Invalid admin configuration: {0}")]
+    InvalidAdminConfig(#[from] admin::AdminConfigError),
+    #[error("Invalid adaptive response-cache configuration: {0}")]
+    InvalidResponseCacheConfig(#[from] response_cache::ResponseCacheConfigError),
 }
 
 #[cfg_attr(not(unix), allow(clippy::unused_async))]
 pub async fn run(
-    data_storage: &'static DataStorage,
+    control_store: &'static ControlStore,
     irc_listener: &'static IrcListener,
     config: &'static Config,
+    block_store: &'static AsyncSqliteBlockStore,
+    open_blocks: Option<SharedOpenBlocksHandle>,
     shutdown_signal: CancellationToken,
 ) -> Result<BoxFuture<'static, std::io::Result<()>>, BindError> {
+    let mut peer_client = peer::PeerClient::from_config(&config.peer)?;
+    if let Some(client) = &mut peer_client {
+        client.set_placement(
+            config
+                .cache_placement
+                .placement()
+                .map_err(|_| BindError::InvalidClusterState)?,
+        );
+    }
+    if !config.cache_placement.members.is_empty()
+        && config
+            .cache_placement
+            .members
+            .iter()
+            .filter(|name| **name != config.cache_placement.local_node)
+            .any(|name| !config.peer.nodes.iter().any(|peer| &peer.name == name))
+    {
+        return Err(BindError::InvalidClusterState);
+    }
+    let repair_coordinator =
+        repair::RepairCoordinator::from_config(&config.repair, control_store, block_store)?;
+    let admin_auth = admin::AdminAuth::from_config(&config.admin)?;
+    let response_cache = response_cache::AdaptiveResponseCache::from_config(&config.web)?;
     let shared_state = WebAppData {
-        data_storage,
+        applied_policies: cluster_policy::AppliedPolicies::default(),
+        control_store,
         irc_listener,
         config,
+        block_store,
+        open_blocks,
+        peer_client,
+        repair_coordinator,
+        admin_auth,
+        public_requests: (config.web.max_inflight_recent_requests > 0)
+            .then(|| Arc::new(Semaphore::new(config.web.max_inflight_recent_requests))),
+        response_cache,
     };
+
+    if let Some(cluster) = &control_store.cluster {
+        if !cluster.uses_consensus()
+            && cluster
+                .has_snapshot()
+                .await
+                .map_err(|_| BindError::InvalidClusterState)?
+        {
+            cluster_policy::synchronize(&shared_state)
+                .await
+                .map_err(|_| BindError::InvalidClusterState)?;
+            cluster
+                .mark_ready()
+                .await
+                .map_err(|_| BindError::InvalidClusterState)?;
+        }
+        let app = shared_state.clone();
+        let cancel = shutdown_signal.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(config.control_sync.sync_interval);
+            loop {
+                tokio::select! {
+                    _ = cancel.cancelled() => break,
+                    _ = interval.tick() => {
+                        let cluster = app.control_store.cluster.as_ref().unwrap();
+                        let result = if cluster.uses_consensus() {
+                            cluster_policy::synchronize(&app).await
+                        } else if cluster.is_owner() {
+                            match cluster_policy::synchronize(&app).await {
+                                Ok(()) => cluster.push().await.map_err(ApiError::GetCoverage),
+                                Err(error) => Err(error),
+                            }
+                        } else {
+                            match cluster.pull().await {
+                                Ok(snapshot) => cluster_policy::accept_snapshot(&app,snapshot).await,
+                                Err(error) => Err(ApiError::GetCoverage(error)),
+                            }
+                        };
+                        if result.is_err() { tracing::warn!("Owner-state synchronization pending"); }
+                    }
+                }
+            }
+        });
+    }
 
     let cors = CorsLayer::new()
         .allow_methods(vec![Method::GET, Method::POST])
@@ -97,17 +206,32 @@ pub async fn run(
             header::ACCEPT,
             header::CONTENT_TYPE,
         ])
+        .expose_headers([
+            header::HeaderName::from_static("x-rm-coverage"),
+            header::RETRY_AFTER,
+        ])
         .allow_origin(cors::Any);
 
     let auth_middleware = || {
+        let app_data = shared_state.clone();
         middleware::from_fn(move |req, next| {
-            auth_middleware::with_authorization(req, next, shared_state)
+            auth_middleware::with_authorization(req, next, app_data.clone())
         })
     };
     let api = Router::new()
         .route(
             "/recent-messages/{channel_login}",
-            get(get_recent_messages::get_recent_messages),
+            get(get_recent_messages::get_recent_messages)
+                .route_layer(middleware::from_fn(response_cache::adaptive_response_cache))
+                .route_layer(middleware::from_fn(cluster_policy::gate))
+                .route_layer(middleware::from_fn(peer::delegate_overload)),
+        )
+        .route(
+            "//recent-messages/{channel_login}",
+            get(get_recent_messages::get_recent_messages)
+                .route_layer(middleware::from_fn(response_cache::adaptive_response_cache))
+                .route_layer(middleware::from_fn(cluster_policy::gate))
+                .route_layer(middleware::from_fn(peer::delegate_overload)),
         )
         .route(
             "/ignored",
@@ -128,17 +252,58 @@ pub async fn run(
             "/auth/revoke",
             post(auth_endpoints::revoke_token).route_layer(auth_middleware()),
         )
+        .route(
+            "/admin/always-join",
+            get(admin::get_always_join).put(admin::replace_always_join),
+        )
+        .route(
+            "/admin/always-join/{channel_login}",
+            put(admin::add_always_join).delete(admin::remove_always_join),
+        )
         .route("/metrics", get(get_metrics::get_metrics))
         .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
         .fallback(|| async { ApiError::NotFound })
-        .layer(cors);
+        .layer(cors.clone());
+
+    let internal = Router::new()
+        .route(
+            "/control-state",
+            get(cluster_policy::state_get).post(cluster_policy::state_post),
+        )
+        .route("/control-mutation", post(cluster_policy::mutation_post))
+        .layer(axum::extract::DefaultBodyLimit::max(16 * 1024 * 1024))
+        .route(
+            "/local-recent/{channel_login}",
+            get(peer::get_local_recent).route_layer(middleware::from_fn(cluster_policy::gate)),
+        )
+        .route(
+            "/serve/{channel_login}",
+            get(peer::serve_recent).route_layer(middleware::from_fn(cluster_policy::gate)),
+        )
+        .method_not_allowed_fallback(|| async { ApiError::MethodNotAllowed })
+        .fallback(|| async { ApiError::NotFound });
 
     let servedir = ServeDir::new("web/dist")
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new("web/dist/index.html"));
 
     let app = Router::new()
+        .route("/health/live", get(health::live))
+        .route("/health/ready", get(health::ready))
+        .route(
+            "/api/viewer/badges/{channel_id}",
+            get(viewer_badges::get_badges).layer(cors.clone()),
+        )
+        .route(
+            "/api/{channel_login}",
+            get(get_recent_messages::get_recent_messages)
+                .route_layer(middleware::from_fn(response_cache::adaptive_response_cache))
+                .route_layer(middleware::from_fn(cluster_policy::gate))
+                .route_layer(middleware::from_fn(peer::delegate_overload))
+                .layer(cors.clone()),
+        )
         .nest("/api/v2", api)
+        .nest("/internal/v1", internal)
         .fallback_service(servedir)
         .layer(
             ServiceBuilder::new()

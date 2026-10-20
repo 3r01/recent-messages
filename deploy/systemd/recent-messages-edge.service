@@ -1,0 +1,17 @@
+[Unit]
+Description=Isolated Recentmessages public and private proxy
+After=docker.service network-online.target
+Requires=docker.service
+RequiresMountsFor=/opt/recent-messages-ops
+
+[Service]
+EnvironmentFile=/etc/recent-messages/edge.env
+ExecStartPre=-/usr/bin/docker rm -f recent-messages-edge
+ExecStart=/usr/bin/docker run --name recent-messages-edge --label io.recentmessages.component=edge --network host --user 101:101 --read-only --cap-drop ALL --security-opt no-new-privileges --memory 128m --cpus 0.5 --log-opt max-size=8m --log-opt max-file=2 --tmpfs /tmp:rw,noexec,nosuid,size=16m,mode=1777 --mount type=bind,src=/opt/recent-messages-ops/nginx/nginx.conf,dst=/etc/nginx/nginx.conf,readonly --mount type=bind,src=/opt/recent-messages-ops/nginx/conf.d,dst=/etc/nginx/conf.d,readonly --entrypoint /usr/sbin/nginx ${RM_EDGE_IMAGE} -g "daemon off;"
+ExecStop=/usr/bin/docker stop -t 10 recent-messages-edge
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

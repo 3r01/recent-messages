@@ -8,14 +8,14 @@ use std::pin::Pin;
 use std::time::Duration;
 use std::{future::Future, sync::LazyLock};
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct TwitchUserAccessToken {
     pub access_token: String,
     pub refresh_token: String,
     // we're not interested in the rest of the fields, so they are omitted
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserAuthorization {
     /// unique, random string identifying this access token.
     pub access_token: String,
@@ -25,7 +25,6 @@ pub struct UserAuthorization {
     /// this authorization is valid until this date, regardless of the validity date of the Twitch
     /// integration, the token has to be extended before this expiry date, otherwise it will be invalidated
     /// forever.
-    ///
     /// The authorization typically can live for a long time after the twitch validation expires
     /// (the twitch authorization validation expires 1 hour after `twitch_authorization_last_validated`)
     pub valid_until: DateTime<Utc>,
@@ -117,11 +116,9 @@ impl UserAuthorization {
     }
 
     /// Ensure that the Twitch authorization grant has not been revoked by the user.
-    ///
     /// `try_refresh_if_invalid` is the flag whether to recurse if the initial query for the
     /// user details fails due to a bad token. If the query fails, then the token is refreshed
     /// and this method calls itself again, only this time with `try_refresh_if_invalid=false`.
-    ///
     /// (`try_refresh_if_invalid` should be `true` when called from outside)
     fn validate_still_valid_inner<'a>(
         &'a mut self,

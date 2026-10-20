@@ -1,16 +1,442 @@
-.profile-image {
-  height: 20px;
-  width: 20px;
-  margin-right: 10px;
-}
-
-@media (prefers-color-scheme: dark) {
-  pre {
-    color: #d3d3d3;
-  }
+:root {
+  color-scheme: light dark;
 }
 
 body {
-  // always show scrollbar, to prevent page from jumping around when users navigate between pages that have/dont have scrollbar
+  max-width: 1200px;
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: 20px;
   overflow-y: scroll;
+  background: #fff;
+  color: #333;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+a {
+  color: #111;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+a:hover,
+a:focus {
+  text-decoration: underline;
+}
+
+.site-header {
+  margin-bottom: 2.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0;
+}
+
+.nav-links,
+.account-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.nav-links a,
+.nav-status {
+  font-size: 0.92rem;
+}
+
+.nav-status {
+  color: #777;
+}
+
+.profile-image {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.site-shell {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+button,
+.btn {
+  display: inline-block;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  padding: 0.42rem 0.75rem;
+  background: #fafafa;
+  color: #222;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+button:hover,
+.btn:hover {
+  background: #f0f0f0;
+  text-decoration: none;
+}
+
+.btn-danger {
+  border-color: #a44;
+  color: #8a2020;
+}
+
+button:disabled,
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+section {
+  margin: 0 0 2.6rem;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+}
+
+h2 {
+  margin: 0 0 0.7rem;
+  font-size: 1.5rem;
+}
+
+h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+}
+
+p,
+ul {
+  margin-top: 0.55rem;
+}
+
+li + li {
+  margin-top: 0.35rem;
+}
+
+.note {
+  border-left: 3px solid #bbb;
+  padding-left: 0.9rem;
+  color: #555;
+}
+
+table {
+  width: 100%;
+  margin: 1rem 0 1.4rem;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #ddd;
+  padding: 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f2f2f2;
+}
+
+code {
+  border-radius: 3px;
+  padding: 2px 5px;
+  background: #f0f0f0;
+  color: #111;
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-size: 0.9em;
+}
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  padding: 0.8rem;
+  background: #f8f8f8;
+  white-space: pre-wrap;
+}
+
+pre code {
+  padding: 0;
+  background: transparent;
+  color: #222;
+  white-space: pre-wrap;
+}
+
+.alert {
+  margin-bottom: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0.8rem;
+  background: #fafafa;
+}
+
+.alert-danger,
+.text-danger {
+  color: #8a2020;
+}
+
+.text-success {
+  color: #276b32;
+}
+
+.text-muted {
+  color: #666 !important;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.viewer-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 1.2rem;
+}
+
+.viewer-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 16rem;
+  margin: 0;
+  color: #555;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.viewer-form label:nth-child(2) {
+  width: 7rem;
+}
+
+.viewer-form input {
+  width: 100%;
+  height: 2.4rem;
+  box-sizing: border-box;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  color: #222;
+  font: inherit;
+}
+
+.viewer-form input:focus {
+  border-color: #555;
+  outline: 1px solid #555;
+  outline-offset: 1px;
+}
+
+.viewer-action {
+  display: flex;
+  align-self: flex-end;
+}
+
+.viewer-form button {
+  height: 2.4rem;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 0.9rem;
+}
+
+.chat-viewer {
+  font:
+    10pt/1.5 "Segoe UI",
+    Arial,
+    sans-serif;
+}
+
+.chat-line {
+  min-height: 1.5rem;
+  overflow-wrap: anywhere;
+  padding: 0.08rem 0;
+}
+
+.chat-line time {
+  color: #777;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.3rem;
+}
+
+.chat-line strong {
+  font-weight: 600;
+}
+
+.chat-badge {
+  width: 16px;
+  height: 16px;
+  margin-right: 0.22rem;
+  object-fit: contain;
+  vertical-align: -3px;
+}
+
+.chat-emote {
+  width: auto;
+  height: 28px;
+  margin: -6px 1px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.chat-reply {
+  color: #777;
+  font-size: 9pt;
+  padding-left: 4.7rem;
+}
+
+.chat-event {
+  color: #777;
+  font-style: italic;
+}
+
+.form-text {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.custom-control-input {
+  margin-right: 0.45rem;
+}
+
+.spinner-border {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.4rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.15em;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    padding: 14px;
+  }
+
+  .site-nav {
+    align-items: flex-start;
+  }
+
+  .nav-links {
+    justify-content: flex-end;
+  }
+
+  .chat-reply {
+    padding-left: 0;
+  }
+
+  .viewer-form label:first-child {
+    width: min(16rem, 100%);
+  }
+
+  th,
+  td {
+    padding: 0.5rem;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a1a1a;
+    color: #ccc;
+  }
+
+  a {
+    color: #eee;
+  }
+
+  .site-header,
+  th,
+  td,
+  pre {
+    border-color: #444;
+  }
+
+  .nav-status,
+  .eyebrow,
+  .text-muted {
+    color: #aaa !important;
+  }
+
+  button,
+  .btn,
+  .alert {
+    border-color: #555;
+    background: #242424;
+    color: #eee;
+  }
+
+  .viewer-form input {
+    border-color: #555;
+    background: #242424;
+    color: #ddd;
+  }
+
+  .viewer-form label {
+    color: #aaa;
+  }
+
+  button:hover,
+  .btn:hover {
+    background: #333;
+  }
+
+  th {
+    background: #2a2a2a;
+  }
+
+  code {
+    background: #333;
+    color: #eee;
+  }
+
+  pre {
+    background: #222;
+  }
+
+  pre code {
+    background: transparent;
+    color: #f2f2f2 !important;
+  }
+
+  .note {
+    border-color: #555;
+    color: #bbb;
+  }
+
+  .btn-danger,
+  .text-danger {
+    color: #ff9c9c;
+  }
+
+  .text-success {
+    color: #8bd49a;
+  }
 }
